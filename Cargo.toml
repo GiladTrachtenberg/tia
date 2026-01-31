@@ -4,31 +4,23 @@ version = "0.1.0"
 edition = "2024"
 
 [dependencies]
-# CLI Framework
 clap = { version = "4.5.56", features = ["derive", "env", "cargo"] }
 
-# Async Runtime + HTTP Client
 tokio = { version = "1.49.0", features = ["full"] }
 reqwest = { version = "0.13.1", features = ["json"] }
 
-# Serialization
 serde = { version = "1.0.228", features = ["derive"] }
 serde_json = "1.0"
 
-# Error Handling
 thiserror = "2.0"
 color-eyre = "0.6"
 
-# Output Formatting
 tabled = "0.17"
 termtree = "0.5"
 
-# Logging/Tracing
 tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
-# Provider Architecture
 async-trait = "0.1"
 
-# Cache Location (XDG paths)
 dirs = "5.0"
