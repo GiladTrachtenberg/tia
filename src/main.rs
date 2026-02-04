@@ -1,10 +1,12 @@
 mod cli;
+mod providers;
 
 use clap::Parser;
 use color_eyre::eyre::Result;
 use tracing_subscriber::EnvFilter;
 
 use cli::{Cli, CloudflareCommand, ProviderCommand};
+use providers::DiscoverConfig;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -18,17 +20,23 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        ProviderCommand::Cloudflare { command } => match command {
-            CloudflareCommand::Discover(_args) => {
-                tracing::info!("Cloudflare discover - not yet implemented");
+        ProviderCommand::Cloudflare { command } => {
+            let provider = providers::get_provider("cloudflare")?;
+            match command {
+                CloudflareCommand::Discover(_args) => {
+                    let config = DiscoverConfig::default();
+                    let resources = provider.discover(&config).await?;
+                    tracing::info!(count = resources.len(), "discovery complete");
+                    eprintln!("Cloudflare provider not yet implemented");
+                }
+                CloudflareCommand::Generate(_args) => {
+                    tracing::info!("Cloudflare generate - not yet implemented");
+                }
+                CloudflareCommand::Diff(_args) => {
+                    tracing::info!("Cloudflare diff - not yet implemented");
+                }
             }
-            CloudflareCommand::Generate(_args) => {
-                tracing::info!("Cloudflare generate - not yet implemented");
-            }
-            CloudflareCommand::Diff(_args) => {
-                tracing::info!("Cloudflare diff - not yet implemented");
-            }
-        },
+        }
     }
 
     Ok(())
