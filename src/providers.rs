@@ -3,17 +3,7 @@ pub mod cloudflare;
 use async_trait::async_trait;
 use thiserror::Error;
 
-#[derive(Debug, Clone)]
-pub struct Resource {
-    pub resource_type: String,
-    pub resource_id: String,
-    pub name: String,
-}
-
-#[derive(Debug, Clone, Default)]
-pub struct DiscoverConfig {
-    pub zone: Option<String>,
-}
+use crate::resource::{DiscoverConfig, Resource};
 
 #[derive(Debug, Error)]
 pub enum ProviderError {
@@ -84,6 +74,8 @@ mod tests {
             resource_type: "cloudflare_record".to_string(),
             resource_id: "abc123".to_string(),
             name: "example".to_string(),
+            zone_id: "zone456".to_string(),
+            metadata: serde_json::json!({}),
         };
         let import = provider.generate_import(&resource);
         assert!(import.contains("import {"));

@@ -1,12 +1,17 @@
+mod cache;
 mod cli;
+mod error;
+mod output;
 mod providers;
+mod resource;
+mod terraform;
 
 use clap::Parser;
 use color_eyre::eyre::Result;
 use tracing_subscriber::EnvFilter;
 
 use cli::{Cli, CloudflareCommand, ProviderCommand};
-use providers::DiscoverConfig;
+use resource::DiscoverConfig;
 
 #[tokio::main]
 async fn main() -> Result<()> {
@@ -27,7 +32,7 @@ async fn main() -> Result<()> {
                     let config = DiscoverConfig::default();
                     let resources = provider.discover(&config).await?;
                     tracing::info!(count = resources.len(), "discovery complete");
-                    eprintln!("Cloudflare provider not yet implemented");
+                    tracing::warn!("Cloudflare provider not yet implemented");
                 }
                 CloudflareCommand::Generate(_args) => {
                     tracing::info!("Cloudflare generate - not yet implemented");
