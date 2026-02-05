@@ -14,7 +14,9 @@ pub struct Resource {
 // NOTE: Co-located with Resource for now; consider a dedicated config module as the project grows.
 #[derive(Debug, Clone, Default)]
 pub struct DiscoverConfig {
+    #[allow(dead_code)] // NOTE: TBA in future iterations (zone filtering)
     pub zone: Option<String>,
+    pub token: Option<String>,
 }
 
 #[cfg(test)]

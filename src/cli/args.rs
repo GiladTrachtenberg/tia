@@ -32,7 +32,150 @@ pub enum CloudflareCommand {
 
 #[derive(clap::Args, Debug)]
 pub struct DiscoverArgs {
-    // Placeholder - options added in Epic 2
+    /// Cloudflare API token (overrides CLOUDFLARE_API_TOKEN env var)
+    #[arg(long, env = "CLOUDFLARE_API_TOKEN", hide_env_values = true)]
+    pub token: Option<String>,
+
+    /// Zone name or ID to discover resources from
+    #[arg(long, env = "CLOUDFLARE_ZONE_ID")]
+    pub zone: Option<String>,
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use clap::Parser;
+    use serial_test::serial;
+
+    #[test]
+    fn test_discover_args_token_from_flag() {
+        let cli = Cli::parse_from(["tia", "cloudflare", "discover", "--token=test_token"]);
+
+        if let ProviderCommand::Cloudflare {
+            command: CloudflareCommand::Discover(args),
+        } = cli.command
+        {
+            assert_eq!(args.token, Some("test_token".to_string()));
+        } else {
+            panic!(
+                "Expected Cloudflare Discover command, got {:?}",
+                cli.command
+            );
+        }
+    }
+
+    #[test]
+    fn test_discover_args_zone_from_flag() {
+        let cli = Cli::parse_from(["tia", "cloudflare", "discover", "--zone=example.com"]);
+
+        if let ProviderCommand::Cloudflare {
+            command: CloudflareCommand::Discover(args),
+        } = cli.command
+        {
+            assert_eq!(args.zone, Some("example.com".to_string()));
+        } else {
+            panic!(
+                "Expected Cloudflare Discover command, got {:?}",
+                cli.command
+            );
+        }
+    }
+
+    #[test]
+    fn test_discover_args_both_token_and_zone() {
+        let cli = Cli::parse_from([
+            "tia",
+            "cloudflare",
+            "discover",
+            "--token=my_token",
+            "--zone=my_zone",
+        ]);
+
+        if let ProviderCommand::Cloudflare {
+            command: CloudflareCommand::Discover(args),
+        } = cli.command
+        {
+            assert_eq!(args.token, Some("my_token".to_string()));
+            assert_eq!(args.zone, Some("my_zone".to_string()));
+        } else {
+            panic!(
+                "Expected Cloudflare Discover command, got {:?}",
+                cli.command
+            );
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn test_discover_args_no_flags_provided() {
+        // Temporarily clear env vars to test the "no input" scenario
+        // SAFETY: Test environment, serial execution guaranteed by #[serial]
+        let token_backup = std::env::var("CLOUDFLARE_API_TOKEN").ok();
+        let zone_backup = std::env::var("CLOUDFLARE_ZONE_ID").ok();
+        unsafe {
+            std::env::remove_var("CLOUDFLARE_API_TOKEN");
+            std::env::remove_var("CLOUDFLARE_ZONE_ID");
+        }
+
+        let cli = Cli::parse_from(["tia", "cloudflare", "discover"]);
+
+        // Restore env vars
+        unsafe {
+            if let Some(token) = token_backup {
+                std::env::set_var("CLOUDFLARE_API_TOKEN", token);
+            }
+            if let Some(zone) = zone_backup {
+                std::env::set_var("CLOUDFLARE_ZONE_ID", zone);
+            }
+        }
+
+        if let ProviderCommand::Cloudflare {
+            command: CloudflareCommand::Discover(args),
+        } = cli.command
+        {
+            assert!(args.token.is_none());
+            assert!(args.zone.is_none());
+        } else {
+            panic!(
+                "Expected Cloudflare Discover command, got {:?}",
+                cli.command
+            );
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn test_cli_flag_takes_precedence_over_env() {
+        // SAFETY: Test environment, serial execution guaranteed by #[serial]
+        let token_backup = std::env::var("CLOUDFLARE_API_TOKEN").ok();
+
+        // Set env var, but CLI flag should win
+        unsafe {
+            std::env::set_var("CLOUDFLARE_API_TOKEN", "env_token");
+        }
+
+        let cli = Cli::parse_from(["tia", "cloudflare", "discover", "--token=cli_token"]);
+
+        // Restore original env var state
+        unsafe {
+            match token_backup {
+                Some(token) => std::env::set_var("CLOUDFLARE_API_TOKEN", token),
+                None => std::env::remove_var("CLOUDFLARE_API_TOKEN"),
+            }
+        }
+
+        if let ProviderCommand::Cloudflare {
+            command: CloudflareCommand::Discover(args),
+        } = cli.command
+        {
+            assert_eq!(args.token, Some("cli_token".to_string()));
+        } else {
+            panic!(
+                "Expected Cloudflare Discover command, got {:?}",
+                cli.command
+            );
+        }
+    }
 }
 
 #[derive(clap::Args, Debug)]

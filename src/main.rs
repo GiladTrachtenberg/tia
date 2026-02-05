@@ -25,23 +25,27 @@ async fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        ProviderCommand::Cloudflare { command } => {
-            let provider = providers::get_provider("cloudflare")?;
-            match command {
-                CloudflareCommand::Discover(_args) => {
-                    let config = DiscoverConfig::default();
-                    let resources = provider.discover(&config).await?;
-                    tracing::info!(count = resources.len(), "discovery complete");
-                    tracing::warn!("Cloudflare provider not yet implemented");
-                }
-                CloudflareCommand::Generate(_args) => {
-                    tracing::info!("Cloudflare generate - not yet implemented");
-                }
-                CloudflareCommand::Diff(_args) => {
-                    tracing::info!("Cloudflare diff - not yet implemented");
-                }
+        ProviderCommand::Cloudflare { command } => match command {
+            CloudflareCommand::Discover(args) => {
+                let provider = providers::get_provider("cloudflare", args.token.clone())?;
+                let config = DiscoverConfig {
+                    zone: args.zone,
+                    token: args.token,
+                };
+                let resources = provider.discover(&config).await?;
+                tracing::info!(count = resources.len(), "discovery complete");
             }
-        }
+            CloudflareCommand::Generate(_args) => {
+                let provider = providers::get_provider("cloudflare", None)?;
+                tracing::info!("Cloudflare generate - not yet implemented");
+                let _ = provider; // Suppress unused warning
+            }
+            CloudflareCommand::Diff(_args) => {
+                let provider = providers::get_provider("cloudflare", None)?;
+                tracing::info!("Cloudflare diff - not yet implemented");
+                let _ = provider; // Suppress unused warning
+            }
+        },
     }
 
     Ok(())
