@@ -21,6 +21,20 @@ pub enum CloudflareError {
     #[allow(dead_code)] // NOTE: TBA in future iterations (retry logic)
     #[error("rate limited, retry after {retry_after}s")]
     RateLimited { retry_after: u64 },
+
+    /// Zone not found (no zone with given name/ID exists or not accessible)
+    #[error("zone not found: '{zone}'")]
+    ZoneNotFound { zone: String },
+
+    /// Zone lookup failed due to API error
+    #[error("zone lookup failed: {message}")]
+    ZoneLookupFailed { message: String },
+
+    #[error("discovery failed for {resource_type}: {message}")]
+    DiscoveryFailed {
+        resource_type: String,
+        message: String,
+    },
 }
 
 impl From<CloudflareError> for crate::providers::ProviderError {
@@ -83,5 +97,41 @@ mod tests {
             crate::providers::ProviderError::Cloudflare(_)
         ));
         assert!(provider_err.to_string().contains("authentication failed"));
+    }
+
+    #[test]
+    fn test_zone_not_found_display() {
+        let err = CloudflareError::ZoneNotFound {
+            zone: "example.com".to_string(),
+        };
+        assert_eq!(err.to_string(), "zone not found: 'example.com'");
+    }
+
+    #[test]
+    fn test_zone_not_found_with_id() {
+        let err = CloudflareError::ZoneNotFound {
+            zone: "023e105f4ecef8ad9ca31a8372d0c353".to_string(),
+        };
+        assert!(err.to_string().contains("023e105f4ecef8ad9ca31a8372d0c353"));
+    }
+
+    #[test]
+    fn test_zone_lookup_failed_display() {
+        let err = CloudflareError::ZoneLookupFailed {
+            message: "Permission denied".to_string(),
+        };
+        assert_eq!(err.to_string(), "zone lookup failed: Permission denied");
+    }
+
+    #[test]
+    fn test_discovery_failed_display() {
+        let err = CloudflareError::DiscoveryFailed {
+            resource_type: "cloudflare_dns_record".to_string(),
+            message: "API timeout".to_string(),
+        };
+        assert_eq!(
+            err.to_string(),
+            "discovery failed for cloudflare_dns_record: API timeout"
+        );
     }
 }

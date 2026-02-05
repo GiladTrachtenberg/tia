@@ -1,8 +1,10 @@
 mod client;
 mod error;
+mod types;
 
 pub use client::CloudflareClient;
 pub use error::CloudflareError;
+pub use types::{PagedResponse, PaginationStrategy, ZoneInfo, is_zone_id};
 
 use async_trait::async_trait;
 
@@ -25,7 +27,6 @@ impl Provider for CloudflareProvider {
     }
 
     async fn discover(&self, config: &DiscoverConfig) -> Result<Vec<Resource>, ProviderError> {
-        // Token from constructor takes precedence, then config, then error
         let token = self
             .token
             .clone()
@@ -37,7 +38,6 @@ impl Provider for CloudflareProvider {
                 )
             })?;
 
-        // Create client and verify authentication (fail fast)
         let client =
             CloudflareClient::new(token).map_err(|e| ProviderError::Cloudflare(e.to_string()))?;
 
@@ -46,10 +46,38 @@ impl Provider for CloudflareProvider {
             .await
             .map_err(|e| ProviderError::Cloudflare(e.to_string()))?;
 
-        tracing::info!("Cloudflare authentication verified successfully");
+        tracing::info!("Cloudflare authentication verified");
 
-        // TODO: Implement actual resource discovery in Epic 2 stories
-        Ok(vec![])
+        let zone = config.zone.as_ref().ok_or_else(|| {
+            ProviderError::Cloudflare(
+                "No zone provided. Set CLOUDFLARE_ZONE_ID or use --zone flag".to_string(),
+            )
+        })?;
+
+        let zone_info = client
+            .lookup_zone(zone)
+            .await
+            .map_err(|e| ProviderError::Cloudflare(e.to_string()))?;
+
+        tracing::info!(
+            zone_id = %zone_info.zone_id,
+            account_id = %zone_info.account_id,
+            "Zone lookup successful"
+        );
+
+        let dns_records = client
+            .discover_dns_records(&zone_info.zone_id)
+            .await
+            .map_err(|e| ProviderError::Cloudflare(e.to_string()))?;
+
+        let resources: Vec<Resource> = dns_records
+            .into_iter()
+            .map(|record| record.into_resource(&zone_info.zone_id))
+            .collect();
+
+        tracing::info!(count = resources.len(), "DNS records discovered");
+
+        Ok(resources)
     }
 
     fn generate_import(&self, resource: &Resource) -> String {

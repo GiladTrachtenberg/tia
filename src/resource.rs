@@ -10,13 +10,14 @@ pub struct Resource {
     pub metadata: serde_json::Value,
 }
 
-/// Discovery configuration for provider queries.
-// NOTE: Co-located with Resource for now; consider a dedicated config module as the project grows.
 #[derive(Debug, Clone, Default)]
 pub struct DiscoverConfig {
-    #[allow(dead_code)] // NOTE: TBA in future iterations (zone filtering)
     pub zone: Option<String>,
     pub token: Option<String>,
+    #[allow(dead_code)] // NOTE: Populated after zone lookup
+    pub zone_id: Option<String>,
+    #[allow(dead_code)] // NOTE: Populated after zone lookup, needed for Workers Scripts
+    pub account_id: Option<String>,
 }
 
 #[cfg(test)]

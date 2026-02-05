@@ -36,7 +36,6 @@ pub struct DiscoverArgs {
     #[arg(long, env = "CLOUDFLARE_API_TOKEN", hide_env_values = true)]
     pub token: Option<String>,
 
-    /// Zone name or ID to discover resources from
     #[arg(long, env = "CLOUDFLARE_ZONE_ID")]
     pub zone: Option<String>,
 }
@@ -169,6 +168,74 @@ mod tests {
         } = cli.command
         {
             assert_eq!(args.token, Some("cli_token".to_string()));
+        } else {
+            panic!(
+                "Expected Cloudflare Discover command, got {:?}",
+                cli.command
+            );
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn test_zone_from_env_var_fallback() {
+        // SAFETY: Test environment, serial execution guaranteed by #[serial]
+        let zone_backup = std::env::var("CLOUDFLARE_ZONE_ID").ok();
+
+        // Set zone via env var (no CLI flag)
+        unsafe {
+            std::env::set_var("CLOUDFLARE_ZONE_ID", "env_zone_id_123");
+        }
+
+        let cli = Cli::parse_from(["tia", "cloudflare", "discover"]);
+
+        // Restore original env var state
+        unsafe {
+            match zone_backup {
+                Some(zone) => std::env::set_var("CLOUDFLARE_ZONE_ID", zone),
+                None => std::env::remove_var("CLOUDFLARE_ZONE_ID"),
+            }
+        }
+
+        if let ProviderCommand::Cloudflare {
+            command: CloudflareCommand::Discover(args),
+        } = cli.command
+        {
+            assert_eq!(args.zone, Some("env_zone_id_123".to_string()));
+        } else {
+            panic!(
+                "Expected Cloudflare Discover command, got {:?}",
+                cli.command
+            );
+        }
+    }
+
+    #[test]
+    #[serial]
+    fn test_zone_cli_flag_takes_precedence_over_env() {
+        // SAFETY: Test environment, serial execution guaranteed by #[serial]
+        let zone_backup = std::env::var("CLOUDFLARE_ZONE_ID").ok();
+
+        // Set env var, but CLI flag should win
+        unsafe {
+            std::env::set_var("CLOUDFLARE_ZONE_ID", "env_zone_id");
+        }
+
+        let cli = Cli::parse_from(["tia", "cloudflare", "discover", "--zone=cli_zone_id"]);
+
+        // Restore original env var state
+        unsafe {
+            match zone_backup {
+                Some(zone) => std::env::set_var("CLOUDFLARE_ZONE_ID", zone),
+                None => std::env::remove_var("CLOUDFLARE_ZONE_ID"),
+            }
+        }
+
+        if let ProviderCommand::Cloudflare {
+            command: CloudflareCommand::Discover(args),
+        } = cli.command
+        {
+            assert_eq!(args.zone, Some("cli_zone_id".to_string()));
         } else {
             panic!(
                 "Expected Cloudflare Discover command, got {:?}",
