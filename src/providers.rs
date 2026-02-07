@@ -58,7 +58,7 @@ mod tests {
     fn test_cloudflare_resource_types() {
         let provider = cloudflare::CloudflareProvider::new(None);
         let types = provider.resource_types();
-        assert!(types.contains(&"cloudflare_record"));
+        assert!(types.contains(&"cloudflare_dns_record"));
         assert!(types.contains(&"cloudflare_page_rule"));
         assert!(types.contains(&"cloudflare_firewall_rule"));
         assert!(types.contains(&"cloudflare_worker_script"));
