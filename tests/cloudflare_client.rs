@@ -1,5 +1,3 @@
-//! Integration tests for CloudflareClient.
-
 use tia::{CloudflareClient, CloudflareError};
 use wiremock::matchers::{method, path, query_param, query_param_is_missing};
 use wiremock::{Mock, MockServer, ResponseTemplate};
