@@ -70,12 +70,26 @@ impl Provider for CloudflareProvider {
             .await
             .map_err(|e| ProviderError::Cloudflare(e.to_string()))?;
 
-        let resources: Vec<Resource> = dns_records
+        let mut resources: Vec<Resource> = dns_records
             .into_iter()
             .map(|record| record.into_resource(&zone_info.zone_id))
             .collect();
 
         tracing::info!(count = resources.len(), "DNS records discovered");
+
+        let page_rules = client
+            .discover_page_rules(&zone_info.zone_id)
+            .await
+            .map_err(|e| ProviderError::Cloudflare(e.to_string()))?;
+
+        tracing::info!(count = page_rules.len(), "page rules discovered");
+
+        let page_rule_resources: Vec<Resource> = page_rules
+            .into_iter()
+            .map(|rule| rule.into_resource(&zone_info.zone_id))
+            .collect();
+
+        resources.extend(page_rule_resources);
 
         Ok(resources)
     }
@@ -89,7 +103,7 @@ impl Provider for CloudflareProvider {
 
     fn resource_types(&self) -> Vec<&str> {
         vec![
-            "cloudflare_record",
+            "cloudflare_dns_record",
             "cloudflare_page_rule",
             "cloudflare_firewall_rule",
             "cloudflare_worker_script",
