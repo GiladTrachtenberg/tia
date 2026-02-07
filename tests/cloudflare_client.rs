@@ -422,3 +422,106 @@ async fn test_fetch_all_cursors_api_error() {
         panic!("Expected CloudflareError::Api");
     }
 }
+
+#[tokio::test]
+async fn test_discover_page_rules_success() {
+    let mock_server = MockServer::start().await;
+
+    Mock::given(method("GET"))
+        .and(path("/zones/zone123/pagerules"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "success": true,
+            "errors": [],
+            "messages": [],
+            "result": [
+                {
+                    "id": "rule_abc",
+                    "status": "active",
+                    "priority": 1,
+                    "targets": [{
+                        "target": "url",
+                        "constraint": { "operator": "matches", "value": "*example.com/images/*" }
+                    }],
+                    "actions": [{ "id": "browser_check", "value": "on" }]
+                },
+                {
+                    "id": "rule_def",
+                    "status": "disabled",
+                    "priority": 2,
+                    "targets": [{
+                        "target": "url",
+                        "constraint": { "operator": "matches", "value": "*example.com/api/*" }
+                    }],
+                    "actions": [{ "id": "forwarding_url", "value": {"url": "https://api.example.com", "status_code": 301} }]
+                }
+            ]
+        })))
+        .mount(&mock_server)
+        .await;
+
+    let client =
+        CloudflareClient::with_base_url("test_token".to_string(), mock_server.uri()).unwrap();
+
+    let result = client.discover_page_rules("zone123").await.unwrap();
+    assert_eq!(result.len(), 2);
+    assert_eq!(result[0].id, "rule_abc");
+    assert_eq!(result[0].status, "active");
+    assert_eq!(result[0].priority, 1);
+    assert_eq!(
+        result[0].targets[0].constraint.value,
+        "*example.com/images/*"
+    );
+    assert_eq!(result[1].id, "rule_def");
+    assert_eq!(result[1].status, "disabled");
+}
+
+#[tokio::test]
+async fn test_discover_page_rules_api_error() {
+    let mock_server = MockServer::start().await;
+
+    Mock::given(method("GET"))
+        .and(path("/zones/zone123/pagerules"))
+        .respond_with(ResponseTemplate::new(403).set_body_json(serde_json::json!({
+            "success": false,
+            "errors": [{ "code": 9109, "message": "Insufficient permissions" }],
+            "messages": [],
+            "result": null
+        })))
+        .mount(&mock_server)
+        .await;
+
+    let client =
+        CloudflareClient::with_base_url("test_token".to_string(), mock_server.uri()).unwrap();
+
+    let result = client.discover_page_rules("zone123").await;
+    assert!(result.is_err());
+
+    if let Err(CloudflareError::Api { status, message }) = result {
+        assert_eq!(status, 403);
+        assert!(message.contains("Insufficient permissions"));
+    } else {
+        panic!("Expected CloudflareError::Api");
+    }
+}
+
+#[tokio::test]
+async fn test_discover_page_rules_empty_response() {
+    let mock_server = MockServer::start().await;
+
+    Mock::given(method("GET"))
+        .and(path("/zones/zone123/pagerules"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "success": true,
+            "errors": [],
+            "messages": [],
+            "result": []
+        })))
+        .mount(&mock_server)
+        .await;
+
+    let client =
+        CloudflareClient::with_base_url("test_token".to_string(), mock_server.uri()).unwrap();
+
+    let result = client.discover_page_rules("zone123").await.unwrap();
+    assert!(result.is_empty());
+}
