@@ -1,7 +1,9 @@
 use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 
 use super::CloudflareError;
-use super::types::{DEFAULT_PAGE_SIZE, DnsRecord, Zone, ZoneInfo, is_zone_id};
+use super::types::{
+    CloudflareResponse, DEFAULT_PAGE_SIZE, DnsRecord, PageRule, Zone, ZoneInfo, is_zone_id,
+};
 
 const CLOUDFLARE_API_BASE: &str = "https://api.cloudflare.com/client/v4";
 
@@ -207,6 +209,37 @@ impl CloudflareClient {
             })
         })
         .await
+    }
+
+    pub async fn discover_page_rules(
+        &self,
+        zone_id: &str,
+    ) -> Result<Vec<PageRule>, CloudflareError> {
+        let url = format!("{}/zones/{}/pagerules", self.base_url, zone_id);
+        let response = self.client.get(&url).send().await?;
+
+        let status = response.status();
+        let body: CloudflareResponse<Vec<PageRule>> =
+            response
+                .json()
+                .await
+                .map_err(|e| CloudflareError::DiscoveryFailed {
+                    resource_type: "cloudflare_page_rule".to_string(),
+                    message: format!("Failed to parse page rules response: {}", e),
+                })?;
+
+        if !body.success {
+            return Err(CloudflareError::Api {
+                status: status.as_u16(),
+                message: body
+                    .errors
+                    .first()
+                    .map(|e| e.message.clone())
+                    .unwrap_or_else(|| "Unknown API error".to_string()),
+            });
+        }
+
+        Ok(body.result.unwrap_or_default())
     }
 
     pub async fn fetch_all_pages<T, F, Fut>(

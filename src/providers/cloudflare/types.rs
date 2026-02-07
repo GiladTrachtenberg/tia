@@ -1,4 +1,4 @@
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 
 #[allow(dead_code)] // NOTE: Used by pagination helpers
 pub const DEFAULT_PAGE_SIZE: u32 = 100;
@@ -47,7 +47,7 @@ pub struct CloudflareResponse<T> {
     pub success: bool,
     #[serde(default)]
     pub errors: Vec<CloudflareApiError>,
-    pub result: T,
+    pub result: Option<T>,
     #[serde(default)]
     #[allow(dead_code)] // NOTE: Used by pagination helpers
     pub result_info: Option<ResultInfo>,
@@ -129,6 +129,56 @@ impl DnsRecord {
                 "proxiable": self.proxiable,
                 "proxied": self.proxied,
                 "comment": self.comment,
+            }),
+        }
+    }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PageRuleTarget {
+    pub target: String,
+    pub constraint: PageRuleConstraint,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PageRuleConstraint {
+    pub operator: String,
+    pub value: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct PageRuleAction {
+    pub id: String,
+    pub value: Option<serde_json::Value>,
+}
+
+#[derive(Debug, Deserialize)]
+pub struct PageRule {
+    pub id: String,
+    pub status: String,
+    pub priority: i32,
+    pub targets: Vec<PageRuleTarget>,
+    pub actions: Vec<PageRuleAction>,
+}
+
+impl PageRule {
+    pub fn into_resource(self, zone_id: &str) -> crate::resource::Resource {
+        let name = self
+            .targets
+            .first()
+            .map(|t| t.constraint.value.clone())
+            .unwrap_or_else(|| self.id.clone());
+
+        crate::resource::Resource {
+            resource_type: "cloudflare_page_rule".to_string(),
+            resource_id: self.id,
+            name,
+            zone_id: zone_id.to_string(),
+            metadata: serde_json::json!({
+                "status": self.status,
+                "priority": self.priority,
+                "targets": self.targets,
+                "actions": self.actions,
             }),
         }
     }
@@ -294,11 +344,12 @@ mod tests {
         let response: CloudflareResponse<Vec<Zone>> = serde_json::from_str(json).unwrap();
         assert!(response.success);
         assert!(response.errors.is_empty());
-        assert_eq!(response.result.len(), 1);
-        assert_eq!(response.result[0].id, "zone123");
-        assert_eq!(response.result[0].name, "example.com");
-        assert_eq!(response.result[0].account.id, "acc456");
-        assert_eq!(response.result[0].account.name, "Test Account");
+        let result = response.result.unwrap();
+        assert_eq!(result.len(), 1);
+        assert_eq!(result[0].id, "zone123");
+        assert_eq!(result[0].name, "example.com");
+        assert_eq!(result[0].account.id, "acc456");
+        assert_eq!(result[0].account.name, "Test Account");
     }
 
     #[test]
@@ -309,8 +360,9 @@ mod tests {
             "result": null
         }"#;
 
-        let response: CloudflareResponse<Option<Zone>> = serde_json::from_str(json).unwrap();
+        let response: CloudflareResponse<Zone> = serde_json::from_str(json).unwrap();
         assert!(!response.success);
+        assert!(response.result.is_none());
         assert_eq!(response.errors.len(), 1);
         assert_eq!(response.errors[0].code, 1000);
         assert_eq!(response.errors[0].message, "Invalid API Token");
@@ -351,5 +403,92 @@ mod tests {
         let response = PagedResponse::new(vec![1, 2], Some(10), false);
         let cloned = response.clone();
         assert_eq!(response, cloned);
+    }
+
+    #[test]
+    fn test_page_rule_deserialization() {
+        let json = r#"{
+            "id": "023e105f4ecef8ad9ca31a8372d0c353",
+            "status": "active",
+            "priority": 1,
+            "created_on": "2014-01-01T05:20:00.12345Z",
+            "modified_on": "2014-01-01T05:20:00.12345Z",
+            "targets": [
+                {
+                    "target": "url",
+                    "constraint": {
+                        "operator": "matches",
+                        "value": "*example.com/images/*"
+                    }
+                }
+            ],
+            "actions": [
+                {
+                    "id": "browser_check",
+                    "value": "on"
+                }
+            ]
+        }"#;
+
+        let rule: PageRule = serde_json::from_str(json).unwrap();
+        assert_eq!(rule.id, "023e105f4ecef8ad9ca31a8372d0c353");
+        assert_eq!(rule.status, "active");
+        assert_eq!(rule.priority, 1);
+        assert_eq!(rule.targets.len(), 1);
+        assert_eq!(rule.targets[0].target, "url");
+        assert_eq!(rule.targets[0].constraint.operator, "matches");
+        assert_eq!(rule.targets[0].constraint.value, "*example.com/images/*");
+        assert_eq!(rule.actions.len(), 1);
+        assert_eq!(rule.actions[0].id, "browser_check");
+        assert_eq!(rule.actions[0].value, Some(serde_json::json!("on")));
+    }
+
+    #[test]
+    fn test_page_rule_to_resource() {
+        let rule = PageRule {
+            id: "rule123".to_string(),
+            status: "active".to_string(),
+            priority: 1,
+            targets: vec![PageRuleTarget {
+                target: "url".to_string(),
+                constraint: PageRuleConstraint {
+                    operator: "matches".to_string(),
+                    value: "*example.com/images/*".to_string(),
+                },
+            }],
+            actions: vec![PageRuleAction {
+                id: "browser_check".to_string(),
+                value: Some(serde_json::json!("on")),
+            }],
+        };
+
+        let resource = rule.into_resource("zone456");
+
+        assert_eq!(resource.resource_type, "cloudflare_page_rule");
+        assert_eq!(resource.resource_id, "rule123");
+        assert_eq!(resource.name, "*example.com/images/*");
+        assert_eq!(resource.zone_id, "zone456");
+        assert_eq!(resource.metadata["status"], "active");
+        assert_eq!(resource.metadata["priority"], 1);
+        assert_eq!(
+            resource.metadata["targets"][0]["constraint"]["value"],
+            "*example.com/images/*"
+        );
+        assert_eq!(resource.metadata["actions"][0]["id"], "browser_check");
+    }
+
+    #[test]
+    fn test_page_rule_to_resource_empty_targets_fallback() {
+        let rule = PageRule {
+            id: "rule_no_targets".to_string(),
+            status: "disabled".to_string(),
+            priority: 2,
+            targets: vec![],
+            actions: vec![],
+        };
+
+        let resource = rule.into_resource("zone789");
+
+        assert_eq!(resource.name, "rule_no_targets");
     }
 }
