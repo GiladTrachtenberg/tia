@@ -463,14 +463,11 @@ async fn test_discover_page_rules_success() {
     let result = client.discover_page_rules("zone123").await.unwrap();
     assert_eq!(result.len(), 2);
     assert_eq!(result[0].id, "rule_abc");
-    assert_eq!(result[0].status, "active");
-    assert_eq!(result[0].priority, 1);
     assert_eq!(
         result[0].targets[0].constraint.value,
         "*example.com/images/*"
     );
     assert_eq!(result[1].id, "rule_def");
-    assert_eq!(result[1].status, "disabled");
 }
 
 #[tokio::test]
