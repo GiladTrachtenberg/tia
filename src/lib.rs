@@ -10,6 +10,5 @@ mod error;
 mod output;
 mod terraform;
 
-// Re-export commonly used types
 pub use providers::cloudflare::{CloudflareClient, CloudflareError, ZoneInfo};
 pub use resource::{DiscoverConfig, Resource};

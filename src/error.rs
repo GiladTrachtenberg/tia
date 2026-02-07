@@ -1,7 +1,7 @@
 use thiserror::Error;
 
 #[derive(Debug, Error)]
-#[allow(dead_code)] // NOTE: TBA in future iterations (unified error handling)
+#[allow(dead_code)] // TODO: remove (currently needed unified error handling)
 pub enum TiaError {
     #[error("authentication failed: {0}")]
     Auth(String),
