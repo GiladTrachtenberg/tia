@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
 
 #[allow(dead_code)] // NOTE: Used by pagination helpers
 pub const DEFAULT_PAGE_SIZE: u32 = 100;
@@ -104,14 +104,6 @@ pub struct DnsRecord {
     pub name: String,
     #[serde(rename = "type")]
     pub type_: String,
-    pub content: String,
-    pub ttl: u32,
-    #[serde(default)]
-    pub proxiable: Option<bool>,
-    #[serde(default)]
-    pub proxied: Option<bool>,
-    #[serde(default)]
-    pub comment: Option<String>,
 }
 
 impl DnsRecord {
@@ -123,41 +115,27 @@ impl DnsRecord {
             zone_id: self.zone_id.unwrap_or_else(|| zone_id.to_string()),
             metadata: serde_json::json!({
                 "type": self.type_,
-                "content": self.content,
-                "ttl": self.ttl,
-                "proxiable": self.proxiable,
-                "proxied": self.proxied,
-                "comment": self.comment,
             }),
         }
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct PageRuleTarget {
     pub target: String,
     pub constraint: PageRuleConstraint,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Deserialize)]
 pub struct PageRuleConstraint {
     pub operator: String,
     pub value: String,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
-pub struct PageRuleAction {
-    pub id: String,
-    pub value: Option<serde_json::Value>,
-}
-
 #[derive(Debug, Deserialize)]
 pub struct PageRule {
     pub id: String,
-    pub status: String,
-    pub priority: i32,
     pub targets: Vec<PageRuleTarget>,
-    pub actions: Vec<PageRuleAction>,
 }
 
 impl PageRule {
@@ -173,12 +151,7 @@ impl PageRule {
             resource_id: self.id,
             name,
             zone_id: zone_id.to_string(),
-            metadata: serde_json::json!({
-                "status": self.status,
-                "priority": self.priority,
-                "targets": self.targets,
-                "actions": self.actions,
-            }),
+            metadata: serde_json::json!({}),
         }
     }
 }
@@ -208,15 +181,10 @@ mod tests {
         assert_eq!(record.id, "023e105f4ecef8ad9ca31a8372d0c353");
         assert_eq!(record.name, "api.example.com");
         assert_eq!(record.type_, "A");
-        assert_eq!(record.content, "198.51.100.4");
-        assert_eq!(record.ttl, 3600);
-        assert_eq!(record.proxiable, Some(true));
-        assert_eq!(record.proxied, Some(true));
-        assert_eq!(record.comment, Some("API server".to_string()));
     }
 
     #[test]
-    fn test_dns_record_deserialization_optional_fields_missing() {
+    fn test_dns_record_deserialization_ignores_unknown_fields() {
         let json = r#"{
             "id": "record123",
             "zone_id": "zone456",
@@ -227,10 +195,26 @@ mod tests {
         }"#;
 
         let record: DnsRecord = serde_json::from_str(json).unwrap();
+        assert_eq!(record.id, "record123");
+        assert_eq!(record.zone_id, Some("zone456".to_string()));
+        assert_eq!(record.name, "www.example.com");
         assert_eq!(record.type_, "CNAME");
-        assert_eq!(record.proxiable, None);
-        assert_eq!(record.proxied, None);
-        assert_eq!(record.comment, None);
+    }
+
+    #[test]
+    fn test_dns_record_to_resource_zone_id_fallback() {
+        let record = DnsRecord {
+            id: "rec789".to_string(),
+            zone_id: None,
+            name: "fallback.example.com".to_string(),
+            type_: "AAAA".to_string(),
+        };
+
+        let resource = record.into_resource("fallback_zone");
+
+        assert_eq!(resource.zone_id, "fallback_zone");
+        assert_eq!(resource.resource_id, "rec789");
+        assert_eq!(resource.metadata, serde_json::json!({"type": "AAAA"}));
     }
 
     #[test]
@@ -240,11 +224,6 @@ mod tests {
             zone_id: Some("zone456".to_string()),
             name: "api.example.com".to_string(),
             type_: "A".to_string(),
-            content: "1.2.3.4".to_string(),
-            ttl: 3600,
-            proxiable: Some(true),
-            proxied: Some(true),
-            comment: Some("test".to_string()),
         };
 
         let resource = record.into_resource("zone456");
@@ -256,12 +235,7 @@ mod tests {
         assert_eq!(resource.resource_id, "rec123");
         assert_eq!(resource.name, "api.example.com");
         assert_eq!(resource.zone_id, "zone456");
-        assert_eq!(resource.metadata["type"], "A");
-        assert_eq!(resource.metadata["content"], "1.2.3.4");
-        assert_eq!(resource.metadata["ttl"], 3600);
-        assert_eq!(resource.metadata["proxiable"], true);
-        assert_eq!(resource.metadata["proxied"], true);
-        assert_eq!(resource.metadata["comment"], "test");
+        assert_eq!(resource.metadata, serde_json::json!({"type": "A"}));
     }
 
     #[test]
@@ -425,33 +399,22 @@ mod tests {
 
         let rule: PageRule = serde_json::from_str(json).unwrap();
         assert_eq!(rule.id, "023e105f4ecef8ad9ca31a8372d0c353");
-        assert_eq!(rule.status, "active");
-        assert_eq!(rule.priority, 1);
         assert_eq!(rule.targets.len(), 1);
         assert_eq!(rule.targets[0].target, "url");
         assert_eq!(rule.targets[0].constraint.operator, "matches");
         assert_eq!(rule.targets[0].constraint.value, "*example.com/images/*");
-        assert_eq!(rule.actions.len(), 1);
-        assert_eq!(rule.actions[0].id, "browser_check");
-        assert_eq!(rule.actions[0].value, Some(serde_json::json!("on")));
     }
 
     #[test]
     fn test_page_rule_to_resource() {
         let rule = PageRule {
             id: "rule123".to_string(),
-            status: "active".to_string(),
-            priority: 1,
             targets: vec![PageRuleTarget {
                 target: "url".to_string(),
                 constraint: PageRuleConstraint {
                     operator: "matches".to_string(),
                     value: "*example.com/images/*".to_string(),
                 },
-            }],
-            actions: vec![PageRuleAction {
-                id: "browser_check".to_string(),
-                value: Some(serde_json::json!("on")),
             }],
         };
 
@@ -461,23 +424,14 @@ mod tests {
         assert_eq!(resource.resource_id, "rule123");
         assert_eq!(resource.name, "*example.com/images/*");
         assert_eq!(resource.zone_id, "zone456");
-        assert_eq!(resource.metadata["status"], "active");
-        assert_eq!(resource.metadata["priority"], 1);
-        assert_eq!(
-            resource.metadata["targets"][0]["constraint"]["value"],
-            "*example.com/images/*"
-        );
-        assert_eq!(resource.metadata["actions"][0]["id"], "browser_check");
+        assert_eq!(resource.metadata, serde_json::json!({}));
     }
 
     #[test]
     fn test_page_rule_to_resource_empty_targets_fallback() {
         let rule = PageRule {
             id: "rule_no_targets".to_string(),
-            status: "disabled".to_string(),
-            priority: 2,
             targets: vec![],
-            actions: vec![],
         };
 
         let resource = rule.into_resource("zone789");
