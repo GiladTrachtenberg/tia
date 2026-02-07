@@ -115,7 +115,6 @@ pub struct DnsRecord {
 }
 
 impl DnsRecord {
-    /// Convert to Resource, using provided zone_id (API may not include it in response)
     pub fn into_resource(self, zone_id: &str) -> crate::resource::Resource {
         crate::resource::Resource {
             resource_type: "cloudflare_dns_record".to_string(),
@@ -287,7 +286,6 @@ mod tests {
 
     #[test]
     fn test_is_zone_id_valid_32_hex() {
-        // Valid 32-char hex string
         assert!(is_zone_id("023e105f4ecef8ad9ca31a8372d0c353"));
         assert!(is_zone_id("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"));
         assert!(is_zone_id("0123456789abcdef0123456789abcdef"));
@@ -296,7 +294,6 @@ mod tests {
 
     #[test]
     fn test_is_zone_id_invalid_domain_names() {
-        // Domain names are not zone IDs
         assert!(!is_zone_id("example.com"));
         assert!(!is_zone_id("my-zone.io"));
         assert!(!is_zone_id("subdomain.example.org"));
@@ -304,19 +301,16 @@ mod tests {
 
     #[test]
     fn test_is_zone_id_invalid_length() {
-        // Too short
         assert!(!is_zone_id("abc123"));
-        assert!(!is_zone_id("023e105f4ecef8ad9ca31a8372d0c35")); // 31 chars
-        // Too long
-        assert!(!is_zone_id("023e105f4ecef8ad9ca31a8372d0c3530")); // 33 chars
+        assert!(!is_zone_id("023e105f4ecef8ad9ca31a8372d0c35"));
+        assert!(!is_zone_id("023e105f4ecef8ad9ca31a8372d0c3530"));
     }
 
     #[test]
     fn test_is_zone_id_invalid_non_hex() {
-        // Contains non-hex characters
-        assert!(!is_zone_id("023e105f4ecef8ad9ca31a8372d0c35g")); // 'g' is not hex
-        assert!(!is_zone_id("023e105f4ecef8ad-ca31a8372d0c353")); // dash
-        assert!(!is_zone_id("023e105f4ecef8ad ca31a8372d0c353")); // space
+        assert!(!is_zone_id("023e105f4ecef8ad9ca31a8372d0c35g"));
+        assert!(!is_zone_id("023e105f4ecef8ad-ca31a8372d0c353"));
+        assert!(!is_zone_id("023e105f4ecef8ad ca31a8372d0c353"));
     }
 
     #[test]
@@ -326,7 +320,6 @@ mod tests {
 
     #[test]
     fn test_pagination_strategy_variants() {
-        // Ensure all variants are accessible
         let _page = PaginationStrategy::PageBased;
         let _cursor = PaginationStrategy::CursorBased;
         let _single = PaginationStrategy::SinglePage;
