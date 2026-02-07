@@ -10,7 +10,7 @@ const CLOUDFLARE_API_BASE: &str = "https://api.cloudflare.com/client/v4";
 #[derive(Clone)]
 pub struct CloudflareClient {
     client: reqwest::Client,
-    #[allow(dead_code)] // NOTE: TBA in future iterations (needed for token refresh)
+    #[allow(dead_code)] // TODO: remove (currently needed for token refresh)
     token: String,
     base_url: String,
 }
@@ -84,7 +84,6 @@ impl CloudflareClient {
         &self.base_url
     }
 
-    // NOTE: Auto-detects zone ID (32-char hex) vs zone name
     pub async fn lookup_zone(&self, zone: &str) -> Result<ZoneInfo, CloudflareError> {
         if is_zone_id(zone) {
             self.lookup_zone_by_id(zone).await

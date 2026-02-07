@@ -1,32 +1,23 @@
 use thiserror::Error;
 
-/// Cloudflare-specific errors that can occur during API operations.
-///
-/// SECURITY: Error messages must NEVER contain sensitive data like API tokens.
 #[derive(Debug, Error)]
 pub enum CloudflareError {
-    /// Authentication failed (invalid or expired token)
     #[error("authentication failed: {message}")]
     Auth { message: String },
 
-    /// API returned an error response
     #[error("API error ({status}): {message}")]
     Api { status: u16, message: String },
 
-    /// Network-level error (connection failed, timeout, etc.)
     #[error("network error: {0}")]
     Network(#[from] reqwest::Error),
 
-    /// Rate limited by Cloudflare API
     #[allow(dead_code)] // NOTE: TBA in future iterations (retry logic)
     #[error("rate limited, retry after {retry_after}s")]
     RateLimited { retry_after: u64 },
 
-    /// Zone not found (no zone with given name/ID exists or not accessible)
     #[error("zone not found: '{zone}'")]
     ZoneNotFound { zone: String },
 
-    /// Zone lookup failed due to API error
     #[error("zone lookup failed: {message}")]
     ZoneLookupFailed { message: String },
 
@@ -72,7 +63,6 @@ mod tests {
 
     #[test]
     fn test_error_does_not_contain_token() {
-        // Simulate an error that might accidentally include a token
         let fake_token = "cf_super_secret_token_12345";
         let err = CloudflareError::Auth {
             message: "Invalid API Token".to_string(),
