@@ -2,7 +2,7 @@ use reqwest::header::{AUTHORIZATION, HeaderMap, HeaderValue};
 
 use super::CloudflareError;
 use super::types::{
-    CloudflareResponse, DEFAULT_PAGE_SIZE, DnsRecord, PageRule, Zone, ZoneInfo, is_zone_id,
+    CloudflareResponse, DEFAULT_PAGE_SIZE, DnsRecord, PageRule, Ruleset, Zone, ZoneInfo, is_zone_id,
 };
 
 const CLOUDFLARE_API_BASE: &str = "https://api.cloudflare.com/client/v4";
@@ -305,7 +305,30 @@ impl CloudflareClient {
         Ok(all_results)
     }
 
-    #[allow(dead_code)] // NOTE: Used by ruleset discovery
+    pub async fn discover_rulesets(
+        &self,
+        zone_id: &str,
+        phases: &[&str],
+    ) -> Result<Vec<Ruleset>, CloudflareError> {
+        let url = format!("{}/zones/{}/rulesets", self.base_url, zone_id);
+
+        let all_rulesets = self
+            .fetch_all_cursors(&url, DEFAULT_PAGE_SIZE, |result| async move {
+                serde_json::from_value::<Vec<Ruleset>>(result).map_err(|e| {
+                    CloudflareError::DiscoveryFailed {
+                        resource_type: "cloudflare_ruleset".to_string(),
+                        message: format!("Failed to parse rulesets: {}", e),
+                    }
+                })
+            })
+            .await?;
+
+        Ok(all_rulesets
+            .into_iter()
+            .filter(|r| phases.contains(&r.phase.as_str()))
+            .collect())
+    }
+
     pub async fn fetch_all_cursors<T, F, Fut>(
         &self,
         base_url: &str,

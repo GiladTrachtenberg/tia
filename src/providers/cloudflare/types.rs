@@ -156,9 +156,74 @@ impl PageRule {
     }
 }
 
+pub const PHASE_REDIRECT: &str = "http_request_dynamic_redirect";
+pub const PHASE_REWRITE: &str = "http_request_transform";
+pub const PHASE_FIREWALL_CUSTOM: &str = "http_request_firewall_custom";
+
+pub const DISCOVERABLE_PHASES: &[&str] = &[PHASE_REDIRECT, PHASE_REWRITE, PHASE_FIREWALL_CUSTOM];
+
+#[derive(Debug, Deserialize)]
+pub struct Ruleset {
+    pub id: String,
+    pub name: String,
+    pub phase: String,
+}
+
+impl Ruleset {
+    pub fn into_resource(self, zone_id: &str) -> crate::resource::Resource {
+        crate::resource::Resource {
+            resource_type: "cloudflare_ruleset".to_string(),
+            resource_id: self.id,
+            name: self.name,
+            zone_id: zone_id.to_string(),
+            metadata: serde_json::json!({
+                "phase": self.phase,
+            }),
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_ruleset_deserialization_ignores_extra_fields() {
+        let json = r#"{
+            "id": "2f2feab2026849078ba485f918791bdc",
+            "name": "My custom redirect rules",
+            "description": "Redirect legacy paths",
+            "kind": "zone",
+            "phase": "http_request_dynamic_redirect",
+            "version": "1",
+            "last_updated": "2026-01-15T10:00:00.000000Z"
+        }"#;
+
+        let ruleset: Ruleset = serde_json::from_str(json).unwrap();
+        assert_eq!(ruleset.id, "2f2feab2026849078ba485f918791bdc");
+        assert_eq!(ruleset.name, "My custom redirect rules");
+        assert_eq!(ruleset.phase, "http_request_dynamic_redirect");
+    }
+
+    #[test]
+    fn test_ruleset_into_resource_maps_correctly() {
+        let ruleset = Ruleset {
+            id: "rs_abc123".to_string(),
+            name: "Redirect legacy".to_string(),
+            phase: "http_request_dynamic_redirect".to_string(),
+        };
+
+        let resource = ruleset.into_resource("zone_xyz");
+
+        assert_eq!(resource.resource_type, "cloudflare_ruleset");
+        assert_eq!(resource.resource_id, "rs_abc123");
+        assert_eq!(resource.name, "Redirect legacy");
+        assert_eq!(resource.zone_id, "zone_xyz");
+        assert_eq!(
+            resource.metadata,
+            serde_json::json!({ "phase": "http_request_dynamic_redirect" })
+        );
+    }
 
     #[test]
     fn test_dns_record_deserialization_with_serde_rename() {
