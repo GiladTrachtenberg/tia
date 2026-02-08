@@ -74,16 +74,6 @@ impl CloudflareClient {
         })
     }
 
-    #[allow(dead_code)] // NOTE: Used by resource discovery
-    pub fn http_client(&self) -> &reqwest::Client {
-        &self.client
-    }
-
-    #[allow(dead_code)] // NOTE: Used by resource discovery
-    pub fn api_base(&self) -> &str {
-        &self.base_url
-    }
-
     pub async fn lookup_zone(&self, zone: &str) -> Result<ZoneInfo, CloudflareError> {
         if is_zone_id(zone) {
             self.lookup_zone_by_id(zone).await
@@ -377,7 +367,11 @@ impl CloudflareClient {
                 });
             }
 
-            let page_results = parse_fn(body["result"].clone()).await?;
+            let result_value = body
+                .get("result")
+                .cloned()
+                .unwrap_or(serde_json::Value::Array(vec![]));
+            let page_results = parse_fn(result_value).await?;
             all_results.extend(page_results);
 
             let next_cursor = body
@@ -435,11 +429,5 @@ mod tests {
     fn test_client_is_clone() {
         let client = CloudflareClient::new("test_token".to_string()).unwrap();
         let _cloned = client.clone();
-    }
-
-    #[test]
-    fn test_api_base_url() {
-        let client = CloudflareClient::new("test_token".to_string()).unwrap();
-        assert_eq!(client.api_base(), "https://api.cloudflare.com/client/v4");
     }
 }
