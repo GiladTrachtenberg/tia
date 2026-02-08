@@ -61,6 +61,8 @@ mod tests {
         assert!(types.contains(&"cloudflare_dns_record"));
         assert!(types.contains(&"cloudflare_page_rule"));
         assert!(types.contains(&"cloudflare_ruleset"));
+        assert!(!types.contains(&"cloudflare_firewall_rule"));
+        assert!(!types.contains(&"cloudflare_waf_rule"));
     }
 
     #[tokio::test]
