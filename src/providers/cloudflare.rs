@@ -91,6 +91,20 @@ impl Provider for CloudflareProvider {
 
         resources.extend(page_rule_resources);
 
+        let rulesets = client
+            .discover_rulesets(&zone_info.zone_id, types::DISCOVERABLE_PHASES)
+            .await
+            .map_err(|e| ProviderError::Cloudflare(e.to_string()))?;
+
+        tracing::info!(count = rulesets.len(), "rulesets discovered");
+
+        let ruleset_resources: Vec<Resource> = rulesets
+            .into_iter()
+            .map(|ruleset| ruleset.into_resource(&zone_info.zone_id))
+            .collect();
+
+        resources.extend(ruleset_resources);
+
         Ok(resources)
     }
 
@@ -105,9 +119,7 @@ impl Provider for CloudflareProvider {
         vec![
             "cloudflare_dns_record",
             "cloudflare_page_rule",
-            "cloudflare_firewall_rule",
-            "cloudflare_worker_script",
-            "cloudflare_waf_rule",
+            "cloudflare_ruleset",
         ]
     }
 }
