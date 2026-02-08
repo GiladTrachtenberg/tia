@@ -36,6 +36,14 @@ async fn test_discover_rulesets_phase_filtering() {
                     "kind": "zone",
                     "description": "",
                     "version": "2"
+                },
+                {
+                    "id": "rs_firewall",
+                    "name": "Custom Firewall Rules",
+                    "phase": "http_request_firewall_custom",
+                    "kind": "zone",
+                    "description": "",
+                    "version": "1"
                 }
             ],
             "result_info": { "cursors": {} }
@@ -53,11 +61,13 @@ async fn test_discover_rulesets_phase_filtering() {
     ];
     let result = client.discover_rulesets("zone123", phases).await.unwrap();
 
-    assert_eq!(result.len(), 2);
+    assert_eq!(result.len(), 3);
     assert_eq!(result[0].id, "rs_redirect");
     assert_eq!(result[0].phase, "http_request_dynamic_redirect");
     assert_eq!(result[1].id, "rs_rewrite");
     assert_eq!(result[1].phase, "http_request_transform");
+    assert_eq!(result[2].id, "rs_firewall");
+    assert_eq!(result[2].phase, "http_request_firewall_custom");
 }
 
 #[tokio::test]
