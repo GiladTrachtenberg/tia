@@ -1,6 +1,5 @@
 use serde::Deserialize;
 
-#[allow(dead_code)] // NOTE: Used by pagination helpers
 pub const DEFAULT_PAGE_SIZE: u32 = 100;
 
 #[derive(Debug, Clone, PartialEq)]
@@ -41,7 +40,6 @@ impl<T> PagedResponse<T> {
     }
 }
 
-#[allow(dead_code)] // NOTE: Used in tests and pagination helpers
 #[derive(Debug, Deserialize)]
 pub struct CloudflareResponse<T> {
     pub success: bool,
@@ -49,19 +47,18 @@ pub struct CloudflareResponse<T> {
     pub errors: Vec<CloudflareApiError>,
     pub result: Option<T>,
     #[serde(default)]
-    #[allow(dead_code)] // NOTE: Used by pagination helpers
+    #[allow(dead_code)] // NOTE: Deserialized by serde, read via manual JSON parsing in pagination helpers
     pub result_info: Option<ResultInfo>,
 }
 
-#[allow(dead_code)] // NOTE: Used in tests
 #[derive(Debug, Deserialize)]
 pub struct CloudflareApiError {
-    #[allow(dead_code)] // NOTE: Used for error logging
+    #[allow(dead_code)] // NOTE: Deserialized by serde, not read directly yet
     pub code: u32,
     pub message: String,
 }
 
-#[allow(dead_code)] // NOTE: Used by pagination helpers
+#[allow(dead_code)] // NOTE: Deserialized by serde, fields read via manual JSON parsing in pagination helpers
 #[derive(Debug, Deserialize, Default)]
 pub struct ResultInfo {
     pub page: Option<u32>,
@@ -73,14 +70,14 @@ pub struct ResultInfo {
 
 #[derive(Debug, Deserialize, Default)]
 pub struct Cursors {
-    #[allow(dead_code)] // NOTE: Used by pagination helpers
+    #[allow(dead_code)] // NOTE: Deserialized by serde, read via manual JSON parsing in pagination helpers
     pub after: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
 pub struct Zone {
     pub id: String,
-    #[allow(dead_code)] // NOTE: Used for logging
+    #[allow(dead_code)] // NOTE: Deserialized by serde, used for tracing/logging context
     pub name: String,
     pub account: ZoneAccount,
 }
@@ -88,7 +85,7 @@ pub struct Zone {
 #[derive(Debug, Deserialize)]
 pub struct ZoneAccount {
     pub id: String,
-    #[allow(dead_code)] // NOTE: Used for logging
+    #[allow(dead_code)] // NOTE: Deserialized by serde, used for tracing/logging context
     pub name: String,
 }
 
