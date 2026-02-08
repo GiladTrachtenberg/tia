@@ -3,6 +3,178 @@ use wiremock::matchers::{method, path, query_param, query_param_is_missing};
 use wiremock::{Mock, MockServer, ResponseTemplate};
 
 #[tokio::test]
+async fn test_discover_rulesets_phase_filtering() {
+    let mock_server = MockServer::start().await;
+
+    Mock::given(method("GET"))
+        .and(path("/zones/zone123/rulesets"))
+        .and(query_param_is_missing("cursor"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "success": true,
+            "errors": [],
+            "result": [
+                {
+                    "id": "rs_redirect",
+                    "name": "My Redirect Rules",
+                    "phase": "http_request_dynamic_redirect",
+                    "kind": "zone",
+                    "description": "test",
+                    "version": "1"
+                },
+                {
+                    "id": "rs_managed",
+                    "name": "Cloudflare Managed",
+                    "phase": "http_request_firewall_managed",
+                    "kind": "managed",
+                    "description": "",
+                    "version": "34"
+                },
+                {
+                    "id": "rs_rewrite",
+                    "name": "URL Rewrite Rules",
+                    "phase": "http_request_transform",
+                    "kind": "zone",
+                    "description": "",
+                    "version": "2"
+                }
+            ],
+            "result_info": { "cursors": {} }
+        })))
+        .mount(&mock_server)
+        .await;
+
+    let client =
+        CloudflareClient::with_base_url("test_token".to_string(), mock_server.uri()).unwrap();
+
+    let phases = &[
+        "http_request_dynamic_redirect",
+        "http_request_transform",
+        "http_request_firewall_custom",
+    ];
+    let result = client.discover_rulesets("zone123", phases).await.unwrap();
+
+    assert_eq!(result.len(), 2);
+    assert_eq!(result[0].id, "rs_redirect");
+    assert_eq!(result[0].phase, "http_request_dynamic_redirect");
+    assert_eq!(result[1].id, "rs_rewrite");
+    assert_eq!(result[1].phase, "http_request_transform");
+}
+
+#[tokio::test]
+async fn test_discover_rulesets_cursor_pagination() {
+    let mock_server = MockServer::start().await;
+
+    Mock::given(method("GET"))
+        .and(path("/zones/zone123/rulesets"))
+        .and(query_param_is_missing("cursor"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "success": true,
+            "errors": [],
+            "result": [
+                {
+                    "id": "rs_page1",
+                    "name": "Page 1 Ruleset",
+                    "phase": "http_request_dynamic_redirect"
+                }
+            ],
+            "result_info": { "cursors": { "after": "cursor_page2" } }
+        })))
+        .mount(&mock_server)
+        .await;
+
+    Mock::given(method("GET"))
+        .and(path("/zones/zone123/rulesets"))
+        .and(query_param("cursor", "cursor_page2"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "success": true,
+            "errors": [],
+            "result": [
+                {
+                    "id": "rs_page2",
+                    "name": "Page 2 Ruleset",
+                    "phase": "http_request_transform"
+                }
+            ],
+            "result_info": { "cursors": {} }
+        })))
+        .mount(&mock_server)
+        .await;
+
+    let client =
+        CloudflareClient::with_base_url("test_token".to_string(), mock_server.uri()).unwrap();
+
+    let phases = &["http_request_dynamic_redirect", "http_request_transform"];
+    let result = client.discover_rulesets("zone123", phases).await.unwrap();
+
+    assert_eq!(result.len(), 2);
+    assert_eq!(result[0].id, "rs_page1");
+    assert_eq!(result[1].id, "rs_page2");
+}
+
+#[tokio::test]
+async fn test_discover_rulesets_excludes_non_discoverable_phases() {
+    let mock_server = MockServer::start().await;
+
+    Mock::given(method("GET"))
+        .and(path("/zones/zone123/rulesets"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "success": true,
+            "errors": [],
+            "result": [
+                {
+                    "id": "rs_managed_1",
+                    "name": "Managed WAF",
+                    "phase": "http_request_firewall_managed"
+                },
+                {
+                    "id": "rs_managed_2",
+                    "name": "Managed DDoS",
+                    "phase": "ddos_l7"
+                }
+            ],
+            "result_info": { "cursors": {} }
+        })))
+        .mount(&mock_server)
+        .await;
+
+    let client =
+        CloudflareClient::with_base_url("test_token".to_string(), mock_server.uri()).unwrap();
+
+    let phases = &[
+        "http_request_dynamic_redirect",
+        "http_request_transform",
+        "http_request_firewall_custom",
+    ];
+    let result = client.discover_rulesets("zone123", phases).await.unwrap();
+
+    assert!(result.is_empty());
+}
+
+#[tokio::test]
+async fn test_discover_rulesets_empty_response() {
+    let mock_server = MockServer::start().await;
+
+    Mock::given(method("GET"))
+        .and(path("/zones/zone123/rulesets"))
+        .respond_with(ResponseTemplate::new(200).set_body_json(serde_json::json!({
+            "success": true,
+            "errors": [],
+            "result": [],
+            "result_info": { "cursors": {} }
+        })))
+        .mount(&mock_server)
+        .await;
+
+    let client =
+        CloudflareClient::with_base_url("test_token".to_string(), mock_server.uri()).unwrap();
+
+    let phases = &["http_request_dynamic_redirect"];
+    let result = client.discover_rulesets("zone123", phases).await.unwrap();
+
+    assert!(result.is_empty());
+}
+
+#[tokio::test]
 async fn test_verify_auth_valid_token() {
     let mock_server = MockServer::start().await;
 
